@@ -1,0 +1,32 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Private files from the original local prototype
+.local-only/
+settings.json
+settings.json.tmp
+app.log
+app.log.*
+effect-preview.png
+preview-prompt.md
+codex-quota-float.desktop
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+auth.json
+.codex/
+
+# Build outputs and editor files
+release/
+dist/
+build/
+*.egg-info/
+.idea/
+.vscode/
+*~
