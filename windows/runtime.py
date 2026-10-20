@@ -14,7 +14,7 @@ import threading
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 _APP_DIRECTORY = "codex-quota-float"
 _EXTERNAL_PROGRAM_LOCK = threading.RLock()
 _LINUX_CODEX_PATHS = (

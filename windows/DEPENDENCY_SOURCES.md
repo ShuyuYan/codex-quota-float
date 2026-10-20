@@ -1,7 +1,7 @@
 # Windows EXE 对应源码与许可证
 
 本程序允许按 GNU GPL v3 修改和再发布。程序源代码、构建脚本与对应的
-`codex-quota-float-1.1.1.zip` 随本次 Release 提供；便携 ZIP 和 EXE 内也包含这份源码 ZIP。
+`codex-quota-float-1.1.2.zip` 随本次 Release 提供；便携 ZIP 和 EXE 内也包含这份源码 ZIP。
 所有嵌入的许可证均位于 `licenses/`，实际构建版本和源码地址记录在 `BUILD_INFO.json`。
 
 未修改的上游依赖源码可直接从以下位置获取：

@@ -63,7 +63,7 @@ class DisplayTests(unittest.TestCase):
 
     def test_legacy_position_is_saved_to_xdg_not_the_source(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             source = root / "source"
             source.mkdir()
             legacy = source / "settings.json"
@@ -83,7 +83,7 @@ class DisplayTests(unittest.TestCase):
 
     def test_invalid_settings_object_does_not_prevent_startup(self):
         with tempfile.TemporaryDirectory() as temporary:
-            prefs = Path(temporary) / "settings.json"
+            prefs = Path(temporary).resolve() / "settings.json"
             prefs.write_text("[]")
             with mock.patch.object(app, "settings_path", return_value=prefs):
                 window = app.QuotaFloat(demo=True)
@@ -117,14 +117,15 @@ class ProcessTests(unittest.TestCase):
 
     def test_simultaneous_starts_leave_one_instance_and_status_can_connect(self):
         with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
             name = "quota-test-" + uuid.uuid4().hex
-            stop_file = Path(temporary) / "stop"
+            stop_file = root / "stop"
             script = f'''
 import sys
 from pathlib import Path
 import app
 app.instance_name = lambda: {name!r}
-app.log_path = lambda: Path({temporary!r}) / 'app.log'
+app.log_path = lambda: Path({str(root)!r}) / 'app.log'
 class TestWindow(app.QuotaFloat):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -183,7 +184,7 @@ sys.exit(app.main() or 0)
 
     def test_background_uses_windows_windowless_python_and_redirected_logs(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             interpreter = root / "python.exe"
             windowless = root / "pythonw.exe"
             windowless.touch()
@@ -203,7 +204,7 @@ sys.exit(app.main() or 0)
 
     def test_frozen_background_relaunches_exe_with_independent_bundle(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             executable = root / "download" / "CodexQuotaFloat.exe"
             with mock.patch.object(app.sys, "platform", "win32"), \
                     mock.patch.object(app.sys, "frozen", True, create=True), \
@@ -219,7 +220,7 @@ sys.exit(app.main() or 0)
 
     def test_status_can_write_result_for_windowed_executable(self):
         with tempfile.TemporaryDirectory() as temporary:
-            destination = Path(temporary) / "output" / "status.json"
+            destination = Path(temporary).resolve() / "output" / "status.json"
             command = [sys.executable, str(app.ROOT / "app.py"), "--status", "--output", str(destination)]
             options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
             completed = subprocess.run(command, cwd=app.ROOT, capture_output=True, timeout=5, **options)

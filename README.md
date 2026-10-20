@@ -2,7 +2,9 @@
 
 一个轻量的桌面悬浮窗，让 Codex 的五小时和每周剩余额度像电池电量一样直接可见。
 
-当前发布版本：**v1.1.1**。Windows 提供下载后双击运行的 EXE，Linux 继续使用原版源码。两个系统的源码分别放在 `windows/`、`linux/`，说明和许可证在仓库根目录共用。
+当前发布版本：**v1.1.2**。Windows 提供下载后双击运行的 EXE，Linux 继续使用原版源码。两个系统的源码分别放在 `windows/`、`linux/`，说明和许可证在仓库根目录共用。
+
+v1.1.2 修复英文 Windows 等系统下中文、emoji 路径的快捷方式读写问题，以及 GitHub Actions 的 Windows 临时目录短路径断言失败。
 
 <img src="linux/preview-widget.png" width="128" alt="悬浮窗示例：距重置 3:27，五小时剩余 68%，每周重置日期及剩余 80%">
 
@@ -30,7 +32,7 @@ codex-quota-float/
 └── release_source.py    双系统源码发布打包与校验工具
 ```
 
-`linux/` 保留原 Linux 提交 `f8548e6` 的 11 个程序、测试及资源文件，文件内容不变，仅调整所在目录。其内部版本号保留原值 `0.2.0`；整体发布版本为 **v1.1.1**，Windows 程序内部版本为 `1.1.1`。更新内容见 [CHANGELOG.md](CHANGELOG.md)。
+`linux/` 保留原 Linux 提交 `f8548e6` 的 11 个程序、测试及资源文件，文件内容不变，仅调整所在目录。其内部版本号保留原值 `0.2.0`；整体发布版本为 **v1.1.2**，Windows 程序内部版本为 `1.1.2`。更新内容见 [CHANGELOG.md](CHANGELOG.md)。
 
 - **Windows 10 / 11，64 位 x64**：EXE 内含 Python 和界面依赖，无需安装 Python、运行命令或使用 WSL。
 - **Linux X11 桌面**：需要 Python **3.10+** 和 PyQt5。Wayland 的窗口定位和置顶支持取决于桌面环境；macOS 尚未适配。
@@ -43,10 +45,10 @@ codex-quota-float/
 ### Windows：下载后双击
 
 1. 先安装 Codex，并用自己的 ChatGPT 账号登录。
-2. 打开 [Releases](https://github.com/ShuyuYan/codex-quota-float/releases)，在 Assets 中下载 **`CodexQuotaFloat-1.1.1-windows-x64.exe`**。
+2. 打开 [Releases](https://github.com/ShuyuYan/codex-quota-float/releases)，在 Assets 中下载 **`CodexQuotaFloat-1.1.2-windows-x64.exe`**。
 3. 将 EXE 放到准备长期保存的位置，**双击启动**。首次启动需稍等片刻，桌面会出现额度悬浮窗。
 
-也可下载 `CodexQuotaFloat-1.1.1-windows-x64.zip`，解压后双击其中的 EXE；该包同时附带许可证和第三方说明。普通使用无需下载 GitHub 的 `Source code`，无需安装 Python。
+也可下载 `CodexQuotaFloat-1.1.2-windows-x64.zip`，解压后双击其中的 EXE；该包同时附带许可证和第三方说明。普通使用无需下载 GitHub 的 `Source code`，无需安装 Python。
 
 拖动悬浮窗即可移动，右键可以刷新、切换外观、创建桌面快捷方式或退出。再次双击 EXE 不会重复打开悬浮窗。EXE 是免安装程序，不会自动设置开机启动；建议先把它放到固定文件夹，再右键悬浮窗选择“创建桌面快捷方式”。
 
@@ -54,7 +56,7 @@ codex-quota-float/
 
 ### Linux：原版源码运行
 
-从 [Releases](https://github.com/ShuyuYan/codex-quota-float/releases) 下载并解压 **`codex-quota-float-1.1.1.zip`**，或克隆本仓库。在包含本 README 的根目录运行：
+从 [Releases](https://github.com/ShuyuYan/codex-quota-float/releases) 下载并解压 **`codex-quota-float-1.1.2.zip`**，或克隆本仓库。在包含本 README 的根目录运行：
 
 ```bash
 cd linux
@@ -85,7 +87,7 @@ CODEX_BIN=/path/to/codex bash run.sh --background
 
 ### Windows：从源码运行（开发者）
 
-源码包为 `codex-quota-float-1.1.1.zip`，不包含 Python、PyQt5 或 Codex。需要 Python **3.10+**；两个系统的虚拟环境需分别创建，不能互相复制或共用。
+源码包为 `codex-quota-float-1.1.2.zip`，不包含 Python、PyQt5 或 Codex。需要 Python **3.10+**；两个系统的虚拟环境需分别创建，不能互相复制或共用。
 
 在仓库根目录打开 PowerShell，运行：
 
@@ -178,8 +180,8 @@ EXE 和 ZIP 都提供同名 `.sha256` 校验文件，可按需下载核对。
 Windows PowerShell：
 
 ```powershell
-Get-FileHash .\CodexQuotaFloat-1.1.1-windows-x64.exe -Algorithm SHA256
-Get-Content .\CodexQuotaFloat-1.1.1-windows-x64.exe.sha256
+Get-FileHash .\CodexQuotaFloat-1.1.2-windows-x64.exe -Algorithm SHA256
+Get-Content .\CodexQuotaFloat-1.1.2-windows-x64.exe.sha256
 ```
 
 确认两处 SHA-256 相同，字母大小写不影响比较。
@@ -187,10 +189,10 @@ Get-Content .\CodexQuotaFloat-1.1.1-windows-x64.exe.sha256
 Linux：
 
 ```bash
-sha256sum -c codex-quota-float-1.1.1.zip.sha256
+sha256sum -c codex-quota-float-1.1.2.zip.sha256
 ```
 
-解压后的根目录 `SHA256SUMS` 记录包内公开文件的校验值；`LINUX_BASELINE.json` 记录原 Linux 程序文件及其来源提交。贡献与验证见 [CONTRIBUTING.md](CONTRIBUTING.md)，发布与 Git 命令见 [RELEASE.md](RELEASE.md)。
+解压后的根目录 `SHA256SUMS` 记录包内公开文件的校验值；`LINUX_BASELINE.json` 记录原 Linux 程序文件及其来源提交。
 
 ## 许可证
 

@@ -14,7 +14,7 @@ import runtime
 class FrozenRuntimeTests(unittest.TestCase):
     def test_frozen_launch_uses_real_executable_not_temporary_resources(self):
         with tempfile.TemporaryDirectory() as temporary:
-            executable = Path(temporary) / "Downloaded App" / "CodexQuotaFloat.exe"
+            executable = Path(temporary).resolve() / "Downloaded App" / "CodexQuotaFloat.exe"
             with mock.patch.object(runtime.sys, "frozen", True, create=True), \
                     mock.patch.object(runtime.sys, "executable", str(executable)), \
                     mock.patch.object(runtime.sys, "platform", "win32"):
@@ -23,7 +23,7 @@ class FrozenRuntimeTests(unittest.TestCase):
 
     def test_source_launch_uses_pythonw_and_script(self):
         with tempfile.TemporaryDirectory() as temporary:
-            executable = Path(temporary) / "python.exe"
+            executable = Path(temporary).resolve() / "python.exe"
             windowless = executable.with_name("pythonw.exe")
             windowless.touch()
             with mock.patch.object(runtime.sys, "frozen", False, create=True), \
@@ -34,7 +34,7 @@ class FrozenRuntimeTests(unittest.TestCase):
 
     def test_windowed_output_is_utf8_log_and_existing_stream_is_preserved(self):
         with tempfile.TemporaryDirectory() as temporary:
-            destination = Path(temporary) / "state" / "app.log"
+            destination = Path(temporary).resolve() / "state" / "app.log"
             existing_stdout = runtime.sys.stdout
             with mock.patch.object(runtime, "log_path", return_value=destination), \
                     mock.patch.object(runtime.sys, "stderr", None):
@@ -49,7 +49,7 @@ class FrozenRuntimeTests(unittest.TestCase):
 
     def test_both_missing_streams_share_log_without_double_open(self):
         with tempfile.TemporaryDirectory() as temporary:
-            destination = Path(temporary) / "app.log"
+            destination = Path(temporary).resolve() / "app.log"
             with mock.patch.object(runtime, "log_path", return_value=destination), \
                     mock.patch.object(runtime.sys, "stdout", None), \
                     mock.patch.object(runtime.sys, "stderr", None):
@@ -76,7 +76,7 @@ class RuntimePathTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="quota-path-test-")
         self.addCleanup(self.directory.cleanup)
-        self.base = Path(self.directory.name)
+        self.base = Path(self.directory.name).resolve()
         self.home = self.base / "home"
         for patcher in (
             mock.patch.object(runtime.sys, "platform", "linux"),
@@ -154,9 +154,10 @@ class BinaryDiscoveryTests(unittest.TestCase):
         self.addCleanup(platform.stop)
         self.directory = tempfile.TemporaryDirectory(prefix="quota-runtime-test-")
         self.addCleanup(self.directory.cleanup)
+        self.base = Path(self.directory.name).resolve()
 
     def executable(self, name="codex"):
-        path = Path(self.directory.name) / name
+        path = self.base / name
         path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         path.chmod(0o755)
         return str(path)
@@ -178,19 +179,19 @@ class BinaryDiscoveryTests(unittest.TestCase):
     def test_explicit_command_is_found_in_path(self):
         executable = self.executable("custom-codex.exe")
         with mock.patch.dict(os.environ, {
-            "CODEX_BIN": "custom-codex.exe", "PATH": self.directory.name, "PATHEXT": ".EXE",
+            "CODEX_BIN": "custom-codex.exe", "PATH": str(self.base), "PATHEXT": ".EXE",
         }):
             self.assertEqual(runtime.resolve_codex_binary(), executable)
 
     def test_tilde_in_explicit_path_uses_current_home(self):
         executable = self.executable()
         with mock.patch.dict(os.environ, {
-            "CODEX_BIN": "~/codex", "HOME": self.directory.name, "USERPROFILE": self.directory.name,
+            "CODEX_BIN": "~/codex", "HOME": str(self.base), "USERPROFILE": str(self.base),
         }):
             self.assertEqual(runtime.resolve_codex_binary(), executable)
 
     def test_invalid_explicit_paths_do_not_fall_back_or_disclose_path(self):
-        not_executable = Path(self.directory.name) / "private-user-binary"
+        not_executable = self.base / "private-user-binary"
         not_executable.write_text("not executable", encoding="utf-8")
         for value in (str(not_executable), str(not_executable.parent), "/private-user/missing", ""):
             with self.subTest(value=value), mock.patch.dict(os.environ, {"CODEX_BIN": value}), \
@@ -199,7 +200,7 @@ class BinaryDiscoveryTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "CODEX_BIN 配置无效") as caught:
                     runtime.resolve_codex_binary()
                 self.assertNotIn("private-user", str(caught.exception))
-                self.assertNotIn(self.directory.name, str(caught.exception))
+                self.assertNotIn(str(self.base), str(caught.exception))
                 which.assert_not_called()
 
     def test_invalid_explicit_command_does_not_search_default_command(self):
@@ -236,7 +237,9 @@ class WindowsBinaryDiscoveryTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="quota-windows-test-")
         self.addCleanup(self.directory.cleanup)
-        self.base = Path(self.directory.name)
+        # Windows TEMP can use an 8.3 alias (RUNNER~1); npm discovery resolves
+        # paths, so fixtures must use the same canonical spelling.
+        self.base = Path(self.directory.name).resolve()
         for patcher in (
             mock.patch.object(runtime.sys, "platform", "win32"),
             mock.patch.object(runtime.platform, "machine", return_value="AMD64"),

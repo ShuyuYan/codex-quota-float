@@ -10,7 +10,7 @@ import sys
 import zipfile
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 LINUX_SOURCE_COMMIT = "f8548e61435ad884d88f672a7999caacb06b21bb"
 LINUX_FILES = (
     "app.py", "runtime.py", "quota_reader.py", "run.sh", "install_shortcut.py",
@@ -25,8 +25,7 @@ WINDOWS_FILES = (
 )
 PUBLIC_FILES = (
     ".gitattributes", ".gitignore", ".github/workflows/tests.yml",
-    "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "CONTRIBUTING.md",
-    "CHANGELOG.md", "RELEASE.md", "RELEASE_NOTES.md",
+    "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "CHANGELOG.md",
     "requirements.txt", "release_source.py", "test_release_source.py", "test_build_exe.py", "LINUX_BASELINE.json",
     *("linux/" + name for name in LINUX_FILES),
     *("windows/" + name for name in WINDOWS_FILES),

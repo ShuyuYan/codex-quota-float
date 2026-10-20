@@ -20,7 +20,9 @@ class WindowsShortcutTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="quota-windows-shortcut-")
         self.addCleanup(temporary.cleanup)
-        self.directory = Path(temporary.name)
+        # Hosted Windows runners may expose TEMP through an 8.3 alias such as
+        # RUNNER~1; compare the same canonical paths used by the application.
+        self.directory = Path(temporary.name).resolve()
         self.root = self.directory / "中文 project & $env` 20%"
         self.root.mkdir()
         self.python = self.directory / "my venv" / "python.exe"
@@ -227,31 +229,15 @@ class WindowsShortcutTests(unittest.TestCase):
                 "Arguments": subprocess.list2cmdline(["--launch", str(self.configuration)])}
         self.assertFalse(shortcut.is_project_shortcut(spec, self.configuration))
 
-    def test_shell_passes_data_via_stdin_and_constant_encoded_source(self):
-        # Bypass the mock COM adapter only to inspect its subprocess boundary.
-        with mock.patch.object(shortcut.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run, \
-                mock.patch.object(shortcut.shutil, "which", return_value="powershell.exe"):
-            WindowsShortcutTests.real_shell("write", self.menu, {"TargetPath": "a & $env:HOME `x`"})
-        arguments, keywords = run.call_args
-        self.assertIn("-EncodedCommand", arguments[0])
-        self.assertNotIn("a & $env:HOME `x`", " ".join(arguments[0]))
-        self.assertEqual(json.loads(keywords["input"])["spec"]["TargetPath"], "a & $env:HOME `x`")
-        self.assertNotIn("shell", keywords)
-
-
-# Keep the actual COM adapter available while individual unit tests mock it.
-WindowsShortcutTests.real_shell = staticmethod(shortcut._shell)
-
-
 @unittest.skipUnless(sys.platform == "win32", "Native Windows shortcut check")
 class NativeWindowsShortcutTests(unittest.TestCase):
     def test_real_com_round_trip_with_unicode_and_spaces(self):
         with tempfile.TemporaryDirectory(prefix="quota-native-") as temporary:
-            root = Path(temporary) / "中文 project & $env` 20%"
+            root = Path(temporary).resolve() / "中文 😀 project & $env` 20%"
             root.mkdir()
             config = root / "launcher config.json"
             spec = shortcut.shortcut_spec(config, root, sys.executable)
-            target = root / "shortcut 中文.lnk"
+            target = root / "shortcut 中文 😀.lnk"
             shortcut._write_shortcut(target, spec, config, False)
             actual = shortcut._shell("read", target)
             self.assertEqual(actual, spec)
@@ -264,7 +250,7 @@ class NativeWindowsLauncherTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="quota-native-launch-")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name) / "中文 project & $env` 20%"
+        self.root = Path(temporary.name).resolve() / "中文 project & $env` 20%"
         self.root.mkdir()
         source = Path(__file__).resolve().parent
         for name in ("run.ps1", "run.cmd"):

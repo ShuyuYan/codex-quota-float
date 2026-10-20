@@ -26,6 +26,7 @@ jobs:
         working-directory: ${{ matrix.platform }}
     env:
       QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -54,10 +55,10 @@ jobs:
           python -c "from release_source import build_release, verify_release; print('Verified source files:', verify_release(build_release(destination='build/release')))"
       - uses: actions/upload-artifact@v7
         with:
-          name: source-v1.1.1
+          name: source-v1.1.2
           path: |
-            build/release/codex-quota-float-1.1.1.zip
-            build/release/codex-quota-float-1.1.1.zip.sha256
+            build/release/codex-quota-float-1.1.2.zip
+            build/release/codex-quota-float-1.1.2.zip.sha256
           if-no-files-found: error
 
   windows-executable:
@@ -83,14 +84,14 @@ jobs:
         run: python windows/build_exe.py
       - uses: actions/upload-artifact@v7
         with:
-          name: windows-x64-v1.1.1
+          name: windows-x64-v1.1.2
           path: |
-            release/CodexQuotaFloat-1.1.1-windows-x64.exe
-            release/CodexQuotaFloat-1.1.1-windows-x64.exe.sha256
-            release/CodexQuotaFloat-1.1.1-windows-x64.zip
-            release/CodexQuotaFloat-1.1.1-windows-x64.zip.sha256
-            release/codex-quota-float-1.1.1.zip
-            release/codex-quota-float-1.1.1.zip.sha256
+            release/CodexQuotaFloat-1.1.2-windows-x64.exe
+            release/CodexQuotaFloat-1.1.2-windows-x64.exe.sha256
+            release/CodexQuotaFloat-1.1.2-windows-x64.zip
+            release/CodexQuotaFloat-1.1.2-windows-x64.zip.sha256
+            release/codex-quota-float-1.1.2.zip
+            release/codex-quota-float-1.1.2.zip.sha256
             release/DEPENDENCY_SOURCES.md
           if-no-files-found: error
           compression-level: 0

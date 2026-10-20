@@ -2,23 +2,19 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Per-user Windows shortcuts with JSON data for environment overrides.
 
-WScript.Shell receives data via stdin. No paths or settings are interpolated into
-PowerShell source. Importing this module never writes files or runs commands.
+Shell links use the native Unicode COM interfaces, including file persistence.
+Importing this module never writes files or runs commands.
 """
 import argparse
-import base64
 import ctypes
 import json
 import os
 from pathlib import Path
-import shutil
 import stat
 import subprocess
 import sys
 import tempfile
 import uuid
-
-from runtime import external_program_environment
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 APP_NAME = "Codex 额度悬浮球"
@@ -30,30 +26,6 @@ _FOLDERS = {
     "programs": "A77F5D77-2E2B-44C3-A6A2-ABA601054A51",
     "desktop": "B4BFCC3A-DB2C-424C-B029-7FE99A87C641",
 }
-_SHELL_SCRIPT = r"""
-$ErrorActionPreference = 'Stop'
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-$request = [Console]::In.ReadToEnd() | ConvertFrom-Json
-$shell = New-Object -ComObject WScript.Shell
-$link = $shell.CreateShortcut([string]$request.path)
-if ($request.operation -eq 'write') {
-    $link.TargetPath = [string]$request.spec.TargetPath
-    $link.Arguments = [string]$request.spec.Arguments
-    $link.WorkingDirectory = [string]$request.spec.WorkingDirectory
-    $link.Description = [string]$request.spec.Description
-    $link.WindowStyle = 7
-    $link.IconLocation = [string]$request.spec.IconLocation
-    $link.Save()
-} elseif ($request.operation -eq 'read') {
-    @{
-        TargetPath = $link.TargetPath
-        Arguments = $link.Arguments
-        WorkingDirectory = $link.WorkingDirectory
-        Description = $link.Description
-        IconLocation = $link.IconLocation
-    } | ConvertTo-Json -Compress
-} else { throw 'Invalid shortcut operation' }
-"""
 
 
 class InstallError(RuntimeError):
@@ -148,31 +120,84 @@ def shortcut_spec(configuration, project_root=None, python_executable=None):
 
 
 def _shell(operation, path, spec=None):
-    system = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
-    powershell = str(system) if system.is_file() else shutil.which("powershell.exe")
-    if not powershell:
-        raise InstallError("未找到 Windows PowerShell，无法创建原生快捷方式。")
-    encoded = base64.b64encode(_SHELL_SCRIPT.encode("utf-16-le")).decode("ascii")
-    request = {"operation": operation, "path": str(path), "spec": spec}
+    """Use IShellLinkW + IPersistFile; WshShortcut.Save uses the ANSI code page.
+
+    COM method slots follow shobjidl_core.h and objidl.h. Every path and string
+    uses WCHAR, so shortcut names work independently of the system locale.
+    """
+    if operation not in ("read", "write"):
+        raise InstallError("无效的快捷方式操作。")
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("data", ctypes.c_ubyte * 16)]
+
+        def __init__(self, value):
+            super().__init__((ctypes.c_ubyte * 16).from_buffer_copy(uuid.UUID(value).bytes_le))
+
+    def invoke(pointer, slot, argument_types=(), *arguments):
+        table = ctypes.cast(pointer, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        method = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, *argument_types)(table[slot])
+        result = method(pointer, *arguments)
+        if result < 0:
+            raise ctypes.WinError(result)
+
+    ole = ctypes.WinDLL("ole32")
+    ole.CoInitializeEx.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    ole.CoInitializeEx.restype = ctypes.c_long
+    ole.CoCreateInstance.argtypes = [ctypes.POINTER(GUID), ctypes.c_void_p, ctypes.c_uint32,
+                                    ctypes.POINTER(GUID), ctypes.POINTER(ctypes.c_void_p)]
+    ole.CoCreateInstance.restype = ctypes.c_long
+    ole.CoUninitialize.argtypes = []
+    ole.CoUninitialize.restype = None
+    initialized = False
+    link, persist = ctypes.c_void_p(), ctypes.c_void_p()
     try:
-        with external_program_environment() as environment:
-            result = subprocess.run([powershell, "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-                                    input=json.dumps(request, ensure_ascii=True), capture_output=True,
-                                    text=True, encoding="utf-8", errors="replace", timeout=20, env=environment,
-                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), check=False)
-    except (OSError, subprocess.TimeoutExpired) as error:
+        result = ole.CoInitializeEx(None, 2)  # COINIT_APARTMENTTHREADED
+        initialized = result in (0, 1)
+        if result < 0 and result != -2147417850:  # Existing COM apartment: RPC_E_CHANGED_MODE
+            raise ctypes.WinError(result)
+        clsid = GUID("00021401-0000-0000-C000-000000000046")
+        iid_link = GUID("000214F9-0000-0000-C000-000000000046")
+        result = ole.CoCreateInstance(ctypes.byref(clsid), None, 1, ctypes.byref(iid_link), ctypes.byref(link))
+        if result < 0:
+            raise ctypes.WinError(result)
+        iid_persist = GUID("0000010B-0000-0000-C000-000000000046")
+        invoke(link, 0, (ctypes.POINTER(GUID), ctypes.POINTER(ctypes.c_void_p)),
+               ctypes.byref(iid_persist), ctypes.byref(persist))
+        if operation == "write":
+            for key, slot in (("TargetPath", 20), ("Arguments", 11),
+                              ("WorkingDirectory", 9), ("Description", 7)):
+                invoke(link, slot, (ctypes.c_wchar_p,), spec[key])
+            icon, index = spec["IconLocation"].rsplit(",", 1)
+            invoke(link, 17, (ctypes.c_wchar_p, ctypes.c_int), icon, int(index))
+            invoke(link, 15, (ctypes.c_int,), 7)
+            invoke(persist, 6, (ctypes.c_wchar_p, ctypes.c_int), str(path), 1)
+            return None
+        invoke(persist, 5, (ctypes.c_wchar_p, ctypes.c_uint32), str(path), 0)
+        value = {}
+        for key, slot in (("TargetPath", 3), ("Arguments", 10),
+                          ("WorkingDirectory", 8), ("Description", 6), ("IconLocation", 16)):
+            buffer = ctypes.create_unicode_buffer(32768)
+            types = (ctypes.c_wchar_p, ctypes.c_int)
+            arguments = (buffer, len(buffer))
+            if key == "TargetPath":
+                types += (ctypes.c_void_p, ctypes.c_uint32)
+                arguments += (None, 4)  # SLGP_RAWPATH; do not resolve or expand the target.
+            elif key == "IconLocation":
+                index = ctypes.c_int()
+                types += (ctypes.POINTER(ctypes.c_int),)
+                arguments += (ctypes.byref(index),)
+            invoke(link, slot, types, *arguments)
+            value[key] = buffer.value + (f",{index.value}" if key == "IconLocation" else "")
+        return value
+    except (OSError, ValueError, TypeError) as error:
         raise InstallError(f"Windows 快捷方式操作失败：{error}") from error
-    if result.returncode:
-        raise InstallError(f"Windows 快捷方式操作失败：{result.stderr.strip()}")
-    if operation == "read":
-        try:
-            value = json.loads(result.stdout.lstrip("\ufeff"))
-            if not isinstance(value, dict):
-                raise ValueError("Expected a shortcut object")
-            return value
-        except (ValueError, TypeError) as error:
-            raise InstallError("无法读取已有快捷方式，已保留原文件。") from error
-    return None
+    finally:
+        for pointer in (persist, link):
+            if pointer:
+                invoke(pointer, 2)  # IUnknown.Release
+        if initialized:
+            ole.CoUninitialize()
 
 
 def is_project_shortcut(spec, configuration):
@@ -248,7 +273,7 @@ def _write_shortcut(target, spec, configuration, force):
     try:
         with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".quota-", suffix=".lnk", delete=False) as file:
             temporary = Path(file.name)
-        # WScript.Shell can reject an empty .lnk, so start with a new path.
+        # Save a new shell link before replacing the final destination.
         temporary.unlink()
         _shell("write", temporary, spec)
         _preflight_shortcut(target, spec, configuration, force)
