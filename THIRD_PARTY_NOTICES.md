@@ -13,5 +13,7 @@ does not bundle Python, Qt, PyQt5, Codex, or other executable dependencies.
   through its app-server protocol; no Codex executable or credentials are
   included here. [App-server documentation](https://learn.chatgpt.com/docs/app-server)
 
-`quota-icon.svg` is an original project asset. `preview-widget.png` is rendered
+`linux/quota-icon.svg` and `windows/quota-icon.svg` are original project assets;
+`windows/quota-icon.ico` is the Windows icon rendition. The platform directories'
+`preview-widget.png` images are rendered
 from the project's demo interface and contains only example quota data.

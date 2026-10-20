@@ -1,0 +1,39 @@
+ .gitattributes                                     |   5 [32m+[m
+ .github/workflows/tests.yml                        |  32 [32m+[m[31m-[m
+ .gitignore                                         |   3 [32m+[m
+ CHANGELOG.md                                       |  17 [32m+[m
+ CONTRIBUTING.md                                    |  49 [32m++[m[31m-[m
+ LINUX_BASELINE.json                                |  16 [32m+[m
+ README.md                                          | 162 [32m++++++[m[31m--[m
+ RELEASE.md                                         |  90 [32m+++++[m
+ RELEASE_NOTES.md                                   |  46 [32m+++[m
+ SHA256SUMS                                         |  56 [32m++[m[31m-[m
+ THIRD_PARTY_NOTICES.md                             |   4 [32m+[m[31m-[m
+ app.py => linux/app.py                             |   0
+ install_shortcut.py => linux/install_shortcut.py   |   0
+ preview-widget.png => linux/preview-widget.png     | Bin
+ quota-icon.svg => linux/quota-icon.svg             |   0
+ quota_reader.py => linux/quota_reader.py           |   0
+ run.sh => linux/run.sh                             |   0
+ runtime.py => linux/runtime.py                     |   0
+ test_app.py => linux/test_app.py                   |   0
+ .../test_install_shortcut.py                       |   0
+ test_quota_reader.py => linux/test_quota_reader.py |   0
+ test_runtime.py => linux/test_runtime.py           |   0
+ release_source.py                                  | 138 [32m++++++[m[31m-[m
+ test_release_source.py                             |  62 [32m++[m[31m-[m
+ windows/app.py                                     | 444 [32m+++++++++++++++++++++[m
+ windows/install_shortcut.py                        |  16 [32m+[m
+ windows/preview-widget.png                         | Bin [31m0[m -> [32m31195[m bytes
+ windows/quota-icon.ico                             | Bin [31m0[m -> [32m67646[m bytes
+ windows/quota-icon.svg                             |  13 [32m+[m
+ windows/quota_reader.py                            | 283 [32m+++++++++++++[m
+ windows/run.cmd                                    |   9 [32m+[m
+ windows/run.ps1                                    |  41 [32m++[m
+ windows/runtime.py                                 | 185 [32m+++++++++[m
+ windows/test_app.py                                | 182 [32m+++++++++[m
+ windows/test_quota_reader.py                       | 270 [32m+++++++++++++[m
+ windows/test_runtime.py                            | 302 [32m++++++++++++++[m
+ windows/test_windows_shortcut.py                   | 270 [32m+++++++++++++[m
+ windows/windows_shortcut.py                        | 309 [32m++++++++++++++[m
+ 38 files changed, 2898 insertions(+), 106 deletions(-)

@@ -1,0 +1,16 @@
+{
+  "commit": "f8548e61435ad884d88f672a7999caacb06b21bb",
+  "files": {
+    "app.py": "8ef0c2cf604a337089031cce0586f9cbb38e805c65a9995eb9ee9b69f4ba6369",
+    "install_shortcut.py": "68c9d5922e584c479976bac283e2539c79904cebe43e0cb01363d4f2b219cac3",
+    "preview-widget.png": "7b43e5bf9e3e17124700a8390ac814496337997ff63ee34f57d96cf5388c9e63",
+    "quota-icon.svg": "5c1b3cf299f0335a370e0e363ae7dafed8e6e1632dc810179dc283d183f4a194",
+    "quota_reader.py": "e92ab4494a81e541078933944ddbe732639b60a2ae40d4a5d60f5b9de9990812",
+    "run.sh": "5774a0f512879dc1b99bcfe879e52043eebaf24c5f108e4c11e6a5bae7ed6012",
+    "runtime.py": "affe0315b0b03a43177f9b671945b55e8a5b61734c283a705ee6b586a0524520",
+    "test_app.py": "422bacdff1e7b8f35ca106ca80cbec5bfe09ec9ddc79dd03c624360fb88cab8f",
+    "test_install_shortcut.py": "ab74b831426e59f9823db73a0438cfb26e88ac5d39b17b63d6dbe1567dce2ab4",
+    "test_quota_reader.py": "cc5463c23fd2ec57228fc08f533daff83570b05eb102f45e542b759df206d8d3",
+    "test_runtime.py": "7e80e6ade7a41b1e2290fc7e0e8871693681ae4e4c605d49c1d66d1f94f73406"
+  }
+}

@@ -14,6 +14,9 @@ app.log.*
 effect-preview.png
 preview-prompt.md
 codex-quota-float.desktop
+codex-quota-float.lnk
+*.lnk
+launcher.json
 
 # Credentials and local configuration
 .env

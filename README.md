@@ -1,8 +1,10 @@
 # Codex Quota Float
 
-一个轻量的 Linux 桌面悬浮窗，让 Codex 的五小时和周额度像电池电量一样直接可见。
+一个轻量的桌面悬浮窗，让 Codex 的五小时和每周剩余额度像电池电量一样直接可见。
 
-<img src="preview-widget.png" width="128" alt="悬浮窗示例：距重置 3:27，五小时剩余 68%，每周重置日期及剩余 80%">
+当前发布版本：**v1.1.0**。Windows 和 Linux 的程序分别放在 `windows/`、`linux/`，安装说明、依赖清单和许可证在仓库根目录共用。
+
+<img src="linux/preview-widget.png" width="128" alt="悬浮窗示例：距重置 3:27，五小时剩余 68%，每周重置日期及剩余 80%">
 
 *预览使用示例数据，不代表真实账户余量。此项目由社区开发，与 OpenAI 无隶属关系。*
 
@@ -15,95 +17,167 @@
 - 右键可以立即刷新、切换外观或退出；重复启动只显示一个悬浮窗。
 - 缺失额度显示 `—`，未知重置时间显示 `--:--`，未知每周重置日期显示 `--.--`；刷新失败时，上次余量变灰。
 
-## 系统要求
+## 目录与系统要求
 
-- **Linux X11 桌面**。当前仅在此环境验证；Wayland 对窗口定位和置顶的支持取决于桌面环境，Windows / macOS 尚未适配。
-- Python **3.10+** 和 PyQt5，依赖由 `requirements.txt` 声明。
+```text
+codex-quota-float/
+├── linux/               Linux 原版程序、启动脚本、图标和测试
+├── windows/             Windows 适配程序、启动脚本、图标和测试
+├── requirements.txt     共用依赖清单
+├── README.md            共用安装与使用说明
+├── LICENSE              共用许可证
+├── LINUX_BASELINE.json  Linux 原版文件的基线校验记录
+└── release_source.py    双系统源码发布打包与校验工具
+```
+
+`linux/` 保留原 Linux 提交 `f8548e6` 的 11 个程序、测试及资源文件，文件内容不变，仅调整所在目录。其内部版本号保留原值 `0.2.0`；**v1.1.0 是本次双系统源码包的发布版本**，Windows 程序内部版本为 `1.1.0`。更新内容见 [CHANGELOG.md](CHANGELOG.md)。
+
+- **Windows 10 / 11**，或 **Linux X11 桌面**。Windows 原生运行，无需 WSL。Wayland 的窗口定位和置顶支持取决于桌面环境；macOS 尚未适配。
+- Python **3.10+** 和 PyQt5，依赖由根目录 `requirements.txt` 声明。
 - 已安装、并通过 **ChatGPT 账号**登录的 Codex，所用版本需要支持 `codex app-server`。
 
 本程序读取 Codex app-server 的 [`account/rateLimits/read`](https://learn.chatgpt.com/docs/app-server) 接口，选择 `codex` 额度桶中时长为 300 / 10080 分钟的窗口。其他时长、缺失窗口或其他额度桶不会被误显示成满额。
 
 ## 安装与启动
 
-从本仓库克隆代码，或下载并解压源码 ZIP，然后在项目目录运行：
+从 [Releases](https://github.com/ShuyuYan/codex-quota-float/releases) 下载并解压 `codex-quota-float-1.1.0.zip`，或克隆本仓库。以下步骤从包含本 README 的根目录开始。
+
+这是**源码发布**，不包含 Python、PyQt5 或 Codex，也不是独立的 Windows `.exe`。请先安装 Python **3.10+**；两个系统的虚拟环境需分别创建，不能互相复制或共用。
+
+### Windows
+
+在仓库根目录打开 PowerShell，运行：
+
+```powershell
+cd windows
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r ..\requirements.txt
+.\run.cmd --background
+```
+
+之后可以直接双击 `windows/run.cmd`；不带参数时默认后台启动。若 `py` 不可用，将 `py -3` 换成已安装的 Python 3.10+ 解释器。无需激活虚拟环境。
+
+在 `windows/` 目录可使用：
+
+```powershell
+# 离线预览，不读取账号
+.\run.cmd --demo
+
+# 检查是否已运行
+.\run.cmd --status
+
+# 读取一次真实额度后退出
+.\run.cmd --check
+
+# 手动指定 Codex 或 Python
+$env:CODEX_BIN = 'C:\Tools\Codex\codex.exe'
+$env:PYTHON = 'C:\Tools\Python312\python.exe'
+.\run.cmd --background
+```
+
+程序支持已登录的 Codex CLI，以及 Windows Codex 桌面应用附带的原生程序。查找范围包括 `PATH`、npm 安装包、桌面应用常见安装目录及可访问的 Microsoft Store 安装目录；npm 的 `.cmd` / `.ps1` 入口会解析到包内的原生 `.exe`。
+
+`run.cmd` 调用同目录的 `run.ps1`，仅对当前进程使用执行策略参数。也可直接运行 `.\.venv\Scripts\python.exe app.py --background`。后台悬浮窗及定时查询子进程不会弹出控制台窗口。
+
+### Linux
+
+在仓库根目录运行：
 
 ```bash
+cd linux
 python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -r ../requirements.txt
 bash run.sh --background
 ```
 
-若 `venv` 模块不可用，请先通过发行版的包管理器安装 Python 的 venv 支持。
+若 `venv` 模块不可用，先通过发行版包管理器安装 Python 的 venv 支持。使用 Codex CLI 的用户可先通过 `codex login` 登录；程序也会检查常见的 Linux 桌面应用安装位置。
 
-使用 Codex CLI 的用户可先运行 `codex login` 登录。若使用桌面应用附带的 Codex，本程序也会检查常见 Linux 安装位置。
-
-### 自定义 Python 或 Codex 位置
-
-`run.sh` 优先使用 `PYTHON` 指定的解释器，其次是项目 `.venv/bin/python`，最后是 `PATH` 中的 `python3`。
+在 `linux/` 目录可使用：
 
 ```bash
+# 前台运行，查看启动错误
+bash run.sh
+
+# 状态、一次查询、离线预览
+bash run.sh --status
+bash run.sh --check
+bash run.sh --demo
+
+# 手动指定 Python 或 Codex
 PYTHON=/path/to/python3 bash run.sh --background
 CODEX_BIN=/path/to/codex bash run.sh --background
 ```
 
-上面的 `/path/to/...` 是需要替换的示例，不是作者的个人路径。Codex 查找顺序为 `CODEX_BIN`、兼容变量 `CODEX_CLI_PATH`、`PATH`，以及常见系统安装位置。显式配置无效时会报错。
+`/path/to/...` 是需要替换的示例。Codex 查找顺序为 `CODEX_BIN`、兼容变量 `CODEX_CLI_PATH`、`PATH`，以及常见系统安装位置；显式配置无效时会报错。Linux 启动脚本优先使用 `PYTHON`，然后是 `linux/.venv/bin/python` 和 `python3`；Windows 优先使用 `PYTHON`，然后是 `windows/.venv/Scripts/python.exe`、`py -3` 和 `python`。
 
 ## 桌面快捷方式
 
-使用运行此应用的同一个 Python 环境安装：
+进入对应系统的程序目录，使用运行程序的同一个 Python 环境安装。
+
+Windows，在 `windows/` 中运行：
+
+```powershell
+.\.venv\Scripts\python.exe install_shortcut.py --dry-run
+.\.venv\Scripts\python.exe install_shortcut.py
+```
+
+生成当前用户的开始菜单和桌面 `.lnk` 快捷方式，支持 OneDrive 等重定向桌面，无需管理员权限；快捷方式使用 `pythonw.exe`。安装时设置的 `CODEX_BIN` / `CODEX_CLI_PATH` 保存在用户日志目录下的 `launcher.json`。
+
+Linux，在 `linux/` 中运行：
 
 ```bash
 .venv/bin/python install_shortcut.py --dry-run
 .venv/bin/python install_shortcut.py
 ```
 
-安装器根据当前电脑的项目位置、解释器和图标生成启动器，不要求所有用户使用同一目录。可以从应用菜单启动，桌面支持快捷方式时也可双击打开。若桌面要求确认，请右键选择“允许启动”。
+生成应用菜单启动器，桌面支持快捷方式时也会安装到桌面。若桌面要求确认，请右键选择“允许启动”。自定义 Codex 位置可在安装时通过 `CODEX_BIN` 指定。
 
-自定义 Codex 位置也可以保存到启动器：
-
-```bash
-CODEX_BIN=/path/to/codex .venv/bin/python install_shortcut.py
-```
-
-移动项目或重建虚拟环境后，需要重新生成快捷方式。安装器的其他选项见：
-
-```bash
-.venv/bin/python install_shortcut.py --help
-```
+安装快捷方式不会自动启动程序。两个系统都可加 `--menu-only` 只安装菜单入口；移动程序目录、更换 Python 或重建虚拟环境后，加 `--force` 重新安装。其他选项可运行 `install_shortcut.py --help` 查看。
 
 ## 使用与数据位置
 
 - 右键悬浮窗 → **退出悬浮球**，即可关闭。
-- 悬浮窗固定在屏幕位置，可拖动到任意角落；不会随 ChatGPT 窗口移动。
-- 倒计时不足一分钟时向上取整，到期显示 `0:00`，直到下一次读取到新的重置时间。
-- 设置：`${XDG_CONFIG_HOME:-~/.config}/codex-quota-float/settings.json`。
-- 后台日志：`${XDG_STATE_HOME:-~/.local/state}/codex-quota-float/app.log`。
-- 旧版源码目录中的 `settings.json` 可作为位置与外观的初始值，之后保存到用户配置目录。
+- 悬浮窗可拖动到任意角落，不随 ChatGPT 窗口移动。
+- 倒计时不足一分钟时向上取整，到期显示 `0:00`，直到读取到新的重置时间。
 
-程序不直接读取、复制或保存登录凭据；认证由用户自己的 Codex 处理。它不启动模型任务，不监听网络端口；Codex 子进程会自行连接其服务以查询额度，并在读取完成后关闭。默认日志不记录额度百分比或重置时间。应用本身不包含遥测功能。
+| 系统 | 设置 | 后台日志 |
+| --- | --- | --- |
+| Windows | `%APPDATA%\codex-quota-float\settings.json` | `%LOCALAPPDATA%\codex-quota-float\app.log` |
+| Linux | `${XDG_CONFIG_HOME:-~/.config}/codex-quota-float/settings.json` | `${XDG_STATE_HOME:-~/.local/state}/codex-quota-float/app.log` |
 
-## 常用命令
+程序不直接读取、复制或保存登录凭据；认证由用户自己的 Codex 处理。它不启动模型任务、不监听网络端口；Codex 子进程自行连接其服务查询额度，并在读取完成后关闭。默认日志不记录额度百分比或重置时间。应用本身不包含遥测功能。
 
-```bash
-# 前台运行，查看启动错误
-bash run.sh
+如果出现“未找到 Codex”，请确认 `codex` 在 `PATH` 中，或设置 `CODEX_BIN`。无法读取账户额度时，请先确认所选 Codex 已通过 ChatGPT 账号登录；API key 账户不一定提供相同的套餐窗口。
 
-# 检查是否已运行
-bash run.sh --status
+## 从旧版升级
 
-# 读取一次真实额度后退出（输出包含当前用量数据）
-bash run.sh --check
+1. 右键退出旧版悬浮窗。
+2. 解压新版，进入对应的 `windows/` 或 `linux/`，按上面步骤创建虚拟环境、安装根目录的依赖。
+3. 在该系统目录中使用同一 Python 运行 `install_shortcut.py --force`，把已有快捷方式更新到新位置。自定义了 Codex 位置时，先设置 `CODEX_BIN`。
 
-# 离线演示；不读取真实账号
-bash run.sh --demo
+同一系统下会继续读取原有用户配置目录中的位置和外观。若仍使用早期保存在源码目录中的 `settings.json`，可将其复制到对应的 `linux/` 或 `windows/`，首次启动时作为初始值读取。请勿将旧虚拟环境直接移动到新目录。
 
-# 导出只有组件本身的示例预览图
-bash run.sh --render preview-widget.png
+## 校验下载包
+
+将 Release 中的 `codex-quota-float-1.1.0.zip.sha256` 与 ZIP 下载到同一目录，解压前校验。
+
+Windows PowerShell：
+
+```powershell
+Get-FileHash .\codex-quota-float-1.1.0.zip -Algorithm SHA256
+Get-Content .\codex-quota-float-1.1.0.zip.sha256
 ```
 
-如果出现“未找到 Codex”，请确认 `codex` 在 `PATH` 中，或设置 `CODEX_BIN`。如果提示无法读取账户额度，请先确认所选 Codex 已通过 ChatGPT 账号登录；API key 账户不一定提供相同的套餐窗口。
+确认两处 SHA-256 相同，字母大小写不影响比较。
 
+Linux：
+
+```bash
+sha256sum -c codex-quota-float-1.1.0.zip.sha256
+```
+
+解压后的根目录 `SHA256SUMS` 记录包内公开文件的校验值；`LINUX_BASELINE.json` 记录原 Linux 程序文件及其来源提交。贡献与验证见 [CONTRIBUTING.md](CONTRIBUTING.md)，发布与 Git 命令见 [RELEASE.md](RELEASE.md)。
 
 ## 许可证
 
-本项目采用 **GNU GPL v3（GPL-3.0-only）**，完整文本见 [LICENSE](LICENSE)。PyQt5 等依赖的说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+本项目采用 **GNU GPL v3（GPL-3.0-only）**，完整文本见根目录 [LICENSE](LICENSE)。PyQt5 等依赖的说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
