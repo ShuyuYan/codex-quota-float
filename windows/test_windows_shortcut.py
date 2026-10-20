@@ -176,6 +176,57 @@ class WindowsShortcutTests(unittest.TestCase):
         popen.assert_not_called()
         self.assertIn("启动器配置无效", log.read_text(encoding="utf-8"))
 
+    def test_frozen_install_targets_real_executable_without_python_or_bundle_files(self):
+        executable = self.root / "CodexQuotaFloat.exe"
+        executable.touch()
+        self.pythonw.unlink()
+        with mock.patch.object(shortcut.sys, "frozen", True, create=True), \
+                mock.patch.object(shortcut.sys, "executable", str(executable)), \
+                mock.patch.object(shortcut, "PROJECT_ROOT", self.directory / "_MEI12345"):
+            self.assertEqual(shortcut.main(["--menu-only"]), 0)
+        spec = self.shell("read", self.menu)
+        self.assertEqual(spec["TargetPath"], str(executable))
+        self.assertEqual(spec["Arguments"], subprocess.list2cmdline(["--launch", str(self.configuration)]))
+        self.assertEqual(spec["WorkingDirectory"], str(self.root))
+        self.assertEqual(spec["IconLocation"], str(executable) + ",0")
+        self.assertTrue(shortcut.is_project_shortcut(spec, self.configuration))
+        config = json.loads(self.configuration.read_text(encoding="utf-8"))
+        self.assertEqual(config["project_root"], str(self.root))
+
+    def test_frozen_launch_preserves_json_overrides_and_resets_pyinstaller_environment(self):
+        executable = self.root / "CodexQuotaFloat.exe"
+        executable.touch()
+        value = r'C:\中文 $env:HOME `tick` & percent%\codex.cmd'
+        with mock.patch.object(shortcut.sys, "frozen", True, create=True), \
+                mock.patch.object(shortcut.sys, "executable", str(executable)), \
+                mock.patch.object(shortcut, "PROJECT_ROOT", self.directory / "_MEI12345"), \
+                mock.patch.dict(os.environ, {"CODEX_BIN": value}), \
+                mock.patch("runtime.log_path", return_value=self.directory / "app.log"), \
+                mock.patch.object(shortcut.subprocess, "Popen") as popen:
+            self.assertEqual(shortcut.main(["--menu-only"]), 0)
+            self.assertEqual(shortcut.launch(self.configuration), 0)
+        arguments, keywords = popen.call_args
+        self.assertEqual(arguments[0], [str(executable), "--background"])
+        self.assertEqual(keywords["cwd"], self.root)
+        self.assertEqual(keywords["env"]["CODEX_BIN"], value)
+        self.assertEqual(keywords["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+        self.assertNotIn("shell", keywords)
+
+    def test_force_can_replace_source_shortcut_with_frozen_shortcut(self):
+        self.assertEqual(shortcut.main(["--menu-only"]), 0)
+        executable = self.root / "CodexQuotaFloat.exe"
+        executable.touch()
+        with mock.patch.object(shortcut.sys, "frozen", True, create=True), \
+                mock.patch.object(shortcut.sys, "executable", str(executable)):
+            self.assertEqual(shortcut.main(["--menu-only", "--force"]), 0)
+        self.assertEqual(self.shell("read", self.menu)["TargetPath"], str(executable))
+
+    def test_frozen_shortcut_identity_rejects_program_outside_working_directory(self):
+        spec = {"Description": shortcut.DESCRIPTION, "WorkingDirectory": str(self.root),
+                "TargetPath": str(self.directory / "Other.exe"),
+                "Arguments": subprocess.list2cmdline(["--launch", str(self.configuration)])}
+        self.assertFalse(shortcut.is_project_shortcut(spec, self.configuration))
+
     def test_shell_passes_data_via_stdin_and_constant_encoded_source(self):
         # Bypass the mock COM adapter only to inspect its subprocess boundary.
         with mock.patch.object(shortcut.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run, \

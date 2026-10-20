@@ -18,6 +18,8 @@ import sys
 import tempfile
 import uuid
 
+from runtime import external_program_environment
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 APP_NAME = "Codex 额度悬浮球"
 LAUNCHER_NAME = APP_NAME + ".lnk"
@@ -71,7 +73,8 @@ def known_folder(name):
     function.restype = ctypes.c_long
     value = ctypes.c_wchar_p()
     try:
-        if function(ctypes.byref(guid), 0, None, ctypes.byref(value)) != 0 or not value.value:
+        # Resolve redirected paths without requiring a Desktop to exist.
+        if function(ctypes.byref(guid), 0x4000, None, ctypes.byref(value)) != 0 or not value.value:
             raise InstallError(f"无法读取 Windows {name} 用户目录。")
         return Path(value.value)
     finally:
@@ -90,8 +93,17 @@ def _valid_text(value):
     return isinstance(value, str) and "\x00" not in value
 
 
+def application_directory(project_root=None):
+    """Keep installed shortcuts beside the real EXE, outside PyInstaller's temp tree."""
+    if project_root is not None:
+        return Path(project_root).resolve()
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return PROJECT_ROOT
+
+
 def launcher_config(project_root=None):
-    root = Path(project_root if project_root is not None else PROJECT_ROOT).resolve()
+    root = application_directory(project_root)
     overrides = {key: os.environ[key] for key in OVERRIDE_KEYS if key in os.environ}
     if not all(_valid_text(value) for value in overrides.values()):
         raise InstallError("CODEX_BIN / CODEX_CLI_PATH 不能包含 NUL 字符。")
@@ -118,15 +130,20 @@ def windowless_python(executable=None):
 
 
 def shortcut_spec(configuration, project_root=None, python_executable=None):
-    root = Path(project_root if project_root is not None else PROJECT_ROOT).resolve()
-    python = windowless_python(python_executable)
+    root = application_directory(project_root)
+    if getattr(sys, "frozen", False):
+        program = Path(sys.executable).resolve()
+        arguments = ["--launch", str(configuration)]
+    else:
+        program = windowless_python(python_executable)
+        arguments = [str(root / "windows_shortcut.py"), "--launch", str(configuration)]
     icon = root / "quota-icon.ico"
     return {
-        "TargetPath": str(python),
-        "Arguments": subprocess.list2cmdline([str(root / "windows_shortcut.py"), "--launch", str(configuration)]),
+        "TargetPath": str(program),
+        "Arguments": subprocess.list2cmdline(arguments),
         "WorkingDirectory": str(root),
         "Description": DESCRIPTION,
-        "IconLocation": str(icon if icon.is_file() else python) + ",0",
+        "IconLocation": str(icon if icon.is_file() else program) + ",0",
     }
 
 
@@ -138,10 +155,11 @@ def _shell(operation, path, spec=None):
     encoded = base64.b64encode(_SHELL_SCRIPT.encode("utf-16-le")).decode("ascii")
     request = {"operation": operation, "path": str(path), "spec": spec}
     try:
-        result = subprocess.run([powershell, "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-                                input=json.dumps(request, ensure_ascii=True), capture_output=True,
-                                text=True, encoding="utf-8", errors="replace", timeout=20,
-                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), check=False)
+        with external_program_environment() as environment:
+            result = subprocess.run([powershell, "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+                                    input=json.dumps(request, ensure_ascii=True), capture_output=True,
+                                    text=True, encoding="utf-8", errors="replace", timeout=20, env=environment,
+                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), check=False)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise InstallError(f"Windows 快捷方式操作失败：{error}") from error
     if result.returncode:
@@ -166,8 +184,14 @@ def is_project_shortcut(spec, configuration):
     root = Path(directory)
     if not root.is_absolute():
         return False
-    return spec.get("Arguments") == subprocess.list2cmdline(
-        [str(root / "windows_shortcut.py"), "--launch", str(configuration)])
+    arguments = spec.get("Arguments")
+    if arguments == subprocess.list2cmdline(
+            [str(root / "windows_shortcut.py"), "--launch", str(configuration)]):
+        return True
+    target = spec.get("TargetPath", "")
+    return (_valid_text(target) and Path(target).is_absolute()
+            and Path(target).suffix.lower() == ".exe" and Path(target).parent == root
+            and arguments == subprocess.list2cmdline(["--launch", str(configuration)]))
 
 
 def _regular_target(target):
@@ -239,16 +263,22 @@ def launch(configuration):
     from runtime import log_path
     try:
         config = json.loads(Path(configuration).read_text(encoding="utf-8"))
-        if not is_project_config(config) or Path(config["project_root"]).resolve() != PROJECT_ROOT:
+        root = application_directory()
+        if not is_project_config(config) or Path(config["project_root"]).resolve() != root:
             raise InstallError("启动器配置无效；请重新安装快捷方式。")
         environment = os.environ.copy()
         environment.update(config["overrides"])
         environment["PYTHONIOENCODING"] = "utf-8"
+        if getattr(sys, "frozen", False):
+            environment["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
         target = log_path()
         target.parent.mkdir(parents=True, exist_ok=True)
+        command = ([str(Path(sys.executable).resolve()), "--background"]
+                   if getattr(sys, "frozen", False) else
+                   [str(windowless_python()), str(root / "app.py"), "--background"])
         with target.open("a", encoding="utf-8") as output:
-            subprocess.Popen([str(windowless_python()), str(PROJECT_ROOT / "app.py"), "--background"],
-                             cwd=PROJECT_ROOT, env=environment, stdin=subprocess.DEVNULL,
+            subprocess.Popen(command,
+                             cwd=root, env=environment, stdin=subprocess.DEVNULL,
                              stdout=output, stderr=output,
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), close_fds=True)
         return 0
@@ -298,7 +328,7 @@ def main(argv=None):
         for target in targets:
             _write_shortcut(target, spec, configuration, options.force)
             print(f"已创建：{target}")
-        print("可在开始菜单中搜索‘Codex 额度悬浮球’。移动项目或 Python 环境后，请重新运行安装命令并加 --force。")
+        print("可在开始菜单中搜索‘Codex 额度悬浮球’。移动程序后，请重新运行安装命令并加 --force。")
         return 0
     except (InstallError, OSError, UnicodeError) as error:
         print(f"安装失败：{error}", file=sys.stderr)

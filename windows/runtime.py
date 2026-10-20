@@ -4,21 +4,110 @@
 Importing this module or asking for a path never creates files or directories.
 """
 
+import contextlib
 import os
 from pathlib import Path
 import platform
 import shutil
 import sys
+import threading
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 _APP_DIRECTORY = "codex-quota-float"
+_EXTERNAL_PROGRAM_LOCK = threading.RLock()
 _LINUX_CODEX_PATHS = (
     "/usr/lib/chatgpt/resources/codex",
     "/opt/chatgpt/resources/codex",
     "/usr/lib/codex/resources/codex",
 )
+
+
+@contextlib.contextmanager
+def external_program_environment():
+    """Keep bundled DLLs out of external programs, then restore Qt's search.
+
+    DLL search configuration belongs to the whole process. Serialize external
+    launches from the GUI and its quota worker so their resets cannot overlap.
+    Self-relaunches use PyInstaller's environment reset instead of this helper.
+    """
+    if sys.platform != "win32" or not getattr(sys, "frozen", False):
+        yield None
+        return
+    import ctypes
+    from ctypes import wintypes
+    with _EXTERNAL_PROGRAM_LOCK:
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        get_directory = kernel.GetDllDirectoryW
+        get_directory.argtypes = [wintypes.DWORD, wintypes.LPWSTR]
+        get_directory.restype = wintypes.DWORD
+        set_directory = kernel.SetDllDirectoryW
+        set_directory.argtypes = [wintypes.LPCWSTR]
+        set_directory.restype = wintypes.BOOL
+        size = get_directory(0, None)
+        previous = ctypes.create_unicode_buffer(size + 1)
+        get_directory(len(previous), previous)
+        bundle = Path(sys._MEIPASS).resolve()
+        environment = os.environ.copy()
+        paths = []
+        for entry in environment.get("PATH", "").split(os.pathsep):
+            try:
+                if entry and Path(entry).resolve().is_relative_to(bundle):
+                    continue
+            except (OSError, ValueError):
+                pass
+            paths.append(entry)
+        environment["PATH"] = os.pathsep.join(paths)
+        if not set_directory(None):
+            raise OSError("Cannot reset DLL directory")
+        try:
+            yield environment
+        finally:
+            set_directory(previous.value or None)
+
+
+def launch_command():
+    """Return a direct relaunch command for a source tree or a frozen EXE.
+
+    Bundled resources live under PROJECT_ROOT; PyInstaller extracts them to a
+    temporary directory. Relaunch the real executable rather than those files.
+    """
+    executable = Path(sys.executable)
+    if getattr(sys, "frozen", False):
+        return [str(executable)]
+    if sys.platform == "win32":
+        windowless = executable.with_name("pythonw.exe")
+        if windowless.is_file():
+            executable = windowless
+    return [str(executable), str(PROJECT_ROOT / "app.py")]
+
+
+def launch_directory():
+    """Keep an EXE's working directory independent of its temporary bundle."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return PROJECT_ROOT
+
+
+def ensure_output_streams():
+    """Give windowed Python/EXE builds usable output streams for diagnostics.
+
+    Importing this module stays side-effect free. The application calls this
+    only at startup; existing console streams are always preserved.
+    """
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    try:
+        destination = log_path()
+        destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        stream = destination.open("a", encoding="utf-8", buffering=1)
+    except OSError:
+        stream = open(os.devnull, "w", encoding="utf-8", buffering=1)
+    if sys.stdout is None:
+        sys.stdout = stream
+    if sys.stderr is None:
+        sys.stderr = stream
 
 
 def _xdg_directory(variable, default):

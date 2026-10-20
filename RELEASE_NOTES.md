@@ -1,32 +1,22 @@
-# Codex Quota Float v1.1.0 — Windows / Linux
+# Codex Quota Float v1.1.1 — Windows EXE / Linux
 
-本次发布将两个系统的程序分别放入 `linux/`、`windows/`，共用根目录的安装说明、依赖清单和许可证。
+Windows 现在可以下载后双击启动，无需安装 Python 或运行命令。本版使用新标签 **v1.1.1**，保留已发布的 v1.1.0。Linux 保持原版程序：`linux/` 的 11 个文件与原提交 `f8548e6` 逐字节一致。
 
-Linux 目录保留原提交 `f8548e6` 的 11 个程序、测试和资源文件，内容不变。新增 Windows 10 / 11 原生适配，支持无控制台后台运行、Codex 自动查找、桌面与开始菜单快捷方式、高 DPI 显示，以及 AppData 配置和日志路径。
+两个系统的源码分别位于 `windows/`、`linux/`，共用根目录的 README 和许可证。均可显示五小时与每周剩余额度、重置时间，支持拖动置顶、切换外观和单实例运行。
 
-两个版本均提供五小时与每周剩余额度、重置时间、拖动置顶、外观切换和单实例功能。
+## Windows：下载后双击
 
-## 下载
+1. 先安装 Codex，并用 ChatGPT 账号登录。
+2. 下载 **`CodexQuotaFloat-1.1.1-windows-x64.exe`**，放到固定文件夹。
+3. **双击 EXE**，稍等片刻即可看到悬浮窗。右键可以刷新、切换外观、创建桌面快捷方式或退出。
 
-- `codex-quota-float-1.1.0.zip`：含 `linux/` 和 `windows/` 的源码包。
-- `codex-quota-float-1.1.0.zip.sha256`：上述 ZIP 的 SHA-256 校验文件。
+支持 **Windows 10 / 11，64 位 x64**。EXE 内含 Python、PyQt5 和所需界面依赖；不包含 Codex。程序自动查找 Codex CLI 或 Codex 桌面应用，读取真实额度仍需网络与已登录账号。
 
-这是源码发布，不包含 Python、PyQt5 或 Codex，不提供独立 `.exe`。需要 Python **3.10+**，以及已通过 ChatGPT 账号登录、支持 `codex app-server` 的 Codex。Linux 以 X11 桌面为目标；Wayland 下的置顶和定位取决于桌面环境；macOS 尚未适配。
+`CodexQuotaFloat-1.1.1-windows-x64.zip` 是附带使用说明、许可证和第三方说明的便携包，解压后双击其中的 EXE 即可。普通用户不需要下载 GitHub 自动生成的 `Source code`。
 
-## 快速开始
+## Linux：使用原版源码
 
-解压后，从包含 README 的根目录开始。
-
-Windows PowerShell：
-
-```powershell
-cd windows
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r ..\requirements.txt
-.\run.cmd --background
-```
-
-Linux：
+下载并解压 **`codex-quota-float-1.1.1.zip`**，从包含 README 的根目录运行：
 
 ```bash
 cd linux
@@ -35,12 +25,22 @@ python3 -m venv .venv
 bash run.sh --background
 ```
 
-离线预览使用 `--demo`，一次性查询真实账户使用 `--check`。Windows 后续可直接双击 `windows/run.cmd` 启动。
+需要 Python **3.10+**，以及已通过 ChatGPT 账号登录、支持 `codex app-server` 的 Codex。以 X11 桌面为目标，Wayland 的置顶和定位取决于桌面环境。
+
+## 下载文件
+
+| 文件 | 用途 |
+| --- | --- |
+| `CodexQuotaFloat-1.1.1-windows-x64.exe` | Windows 双击运行 |
+| `CodexQuotaFloat-1.1.1-windows-x64.zip` | Windows 便携包，含 EXE、说明和许可证 |
+| `codex-quota-float-1.1.1.zip` | Linux 与 Windows 项目源码、测试及构建工具 |
+| `DEPENDENCY_SOURCES.md` | Windows 所含开源依赖的版本、官方下载地址与源码获取说明 |
+| EXE 与两个 ZIP 各自同名的 `.sha256` | SHA-256 校验值 |
 
 ## 升级
 
-先退出旧版，解压新版后进入对应系统目录，重新创建虚拟环境并安装依赖。已有用户配置会继续读取；请使用新版目录中的 Python 执行 `install_shortcut.py --force`，更新快捷方式。虚拟环境不能跨目录或跨系统直接移动。
+先右键退出旧版。Windows EXE 用户替换原文件后双击即可，位置与外观设置继续保留；由源码版迁移时，将旧快捷方式改为新版 EXE。Linux 与 Windows 源码用户按 README 重新创建虚拟环境，并用 `install_shortcut.py --force` 更新已有快捷方式。
 
-整体发布版本为 **v1.1.0**；Windows 内部版本为 `1.1.0`。Linux 程序保持原样，内部版本号保留 `0.2.0`。
+整体版本为 **v1.1.1**，Windows 内部版本为 `1.1.1`，Linux 原内部版本 `0.2.0` 保留。
 
-完整说明见 [README](https://github.com/ShuyuYan/codex-quota-float/blob/v1.1.0/README.md)，更新记录见 [CHANGELOG](https://github.com/ShuyuYan/codex-quota-float/blob/v1.1.0/CHANGELOG.md)。项目采用 GPL-3.0-only，由社区开发，与 OpenAI 无隶属关系。
+完整说明见 [README](https://github.com/ShuyuYan/codex-quota-float/blob/v1.1.1/README.md)，更新记录见 [CHANGELOG](https://github.com/ShuyuYan/codex-quota-float/blob/v1.1.1/CHANGELOG.md)。项目采用 GPL-3.0-only，由社区开发，与 OpenAI 无隶属关系。

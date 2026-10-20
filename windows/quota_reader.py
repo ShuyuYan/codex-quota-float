@@ -15,7 +15,7 @@ import sys
 import threading
 import time
 
-from runtime import APP_VERSION, resolve_codex_binary
+from runtime import APP_VERSION, external_program_environment, resolve_codex_binary
 
 _MAX_LINE_BYTES = 4 * 1024 * 1024
 _CANCEL_CHECK_SECONDS = 0.2
@@ -262,14 +262,11 @@ def read_quota(timeout=15, cancel_event=None):
     deadline = time.monotonic() + duration
     process_options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     try:
-        child = subprocess.Popen(
-            [binary, "app-server"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            bufsize=0,
-            **process_options,
-        )
+        with external_program_environment() as environment:
+            child = subprocess.Popen(
+                [binary, "app-server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL, bufsize=0, env=environment, **process_options,
+            )
     except (OSError, ValueError):
         raise RuntimeError("无法启动 Codex 额度读取服务，请确认 Codex 已安装。") from None
     reader = _PipeReader(child)

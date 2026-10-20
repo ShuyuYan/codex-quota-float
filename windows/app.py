@@ -14,7 +14,8 @@ import tempfile
 from pathlib import Path
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from runtime import APP_VERSION as VERSION, PROJECT_ROOT, log_path, settings_path
+from runtime import (APP_VERSION as VERSION, PROJECT_ROOT, ensure_output_streams,
+                     launch_command, launch_directory, log_path, settings_path)
 
 ROOT = PROJECT_ROOT
 REFRESH_MS = 60_000
@@ -31,24 +32,26 @@ def instance_name():
     return f"codex-quota-float-{identity}"
 
 
-def start_background(demo=False):
+def start_background(demo=False, smoke_test=None):
     import subprocess
-    interpreter = Path(sys.executable)
     process_options = {"start_new_session": True}
     if sys.platform == "win32":
-        windowless = interpreter.with_name("pythonw.exe")
-        if windowless.is_file():
-            interpreter = windowless
         process_options = {"creationflags": subprocess.CREATE_NO_WINDOW}
-    child_args = [str(interpreter), str(ROOT / "app.py")]
+    child_args = launch_command()
     if demo:
         child_args.append("--demo")
+    if smoke_test:
+        child_args.extend(["--smoke-test", str(smoke_test)])
     destination = log_path()
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     environment = dict(os.environ, PYTHONIOENCODING="utf-8")
+    if getattr(sys, "frozen", False):
+        # A detached one-file child must own its extracted files after this
+        # process exits, instead of sharing its parent's temporary bundle.
+        environment["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     with destination.open("ab") as log:
         child = subprocess.Popen(child_args, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                 cwd=ROOT, env=environment, close_fds=True, **process_options)
+                                 cwd=launch_directory(), env=environment, close_fds=True, **process_options)
     return child.pid
 
 
@@ -305,9 +308,52 @@ class QuotaFloat(QtWidgets.QWidget):
         theme.setCheckable(True)
         theme.setChecked(self.dark)
         theme.triggered.connect(self.toggle_theme)
+        if sys.platform == "win32" and getattr(sys, "frozen", False):
+            menu.addSeparator()
+            menu.addAction("创建桌面快捷方式", self.install_shortcuts)
         menu.addSeparator()
+        menu.addAction("关于与许可证", self.show_about)
         menu.addAction("退出悬浮球", self.close)
         menu.exec_(event.globalPos())
+
+    def show_about(self):
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("关于 Codex 额度悬浮球")
+        dialog.resize(620, 440)
+        layout = QtWidgets.QVBoxLayout(dialog)
+        description = QtWidgets.QLabel(
+            f"<b>Codex Quota Float {VERSION}</b><br>"
+            "社区项目，与 OpenAI 无隶属关系。采用 GPL-3.0-only，按许可证提供且不作担保。<br>"
+            "使用 Python、PyQt5 和 Qt。允许按相应许可修改和再发布。<br>"
+            '<a href="https://github.com/ShuyuYan/codex-quota-float/releases">下载对应源码与发布文件</a>')
+        description.setOpenExternalLinks(True)
+        description.setWordWrap(True)
+        layout.addWidget(description)
+        tabs = QtWidgets.QTabWidget()
+        files = [(ROOT / "LICENSE", "项目许可"), (ROOT / "THIRD_PARTY_NOTICES.md", "第三方说明"),
+                 (ROOT / "DEPENDENCY_SOURCES.md", "依赖源码")]
+        if (ROOT / "licenses").is_dir():
+            files.extend((path, path.stem) for path in sorted((ROOT / "licenses").iterdir()) if path.is_file())
+        for path, label in files:
+            if path.is_file():
+                text = QtWidgets.QPlainTextEdit()
+                text.setReadOnly(True)
+                text.setPlainText(path.read_text(encoding="utf-8", errors="replace"))
+                tabs.addTab(text, label)
+        layout.addWidget(tabs)
+        close = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
+        close.rejected.connect(dialog.reject)
+        layout.addWidget(close)
+        dialog.exec_()
+
+    def install_shortcuts(self):
+        from windows_shortcut import main as install
+        if install(["--force"]) == 0:
+            QtWidgets.QMessageBox.information(
+                self, "快捷方式已创建", "已创建桌面和开始菜单快捷方式。\n移动 EXE 后，请再次创建快捷方式。")
+        else:
+            QtWidgets.QMessageBox.warning(
+                self, "快捷方式创建失败", f"请检查目录写入权限，详细信息见：\n{log_path()}")
 
     def toggle_theme(self, checked):
         self.dark = checked
@@ -334,6 +380,11 @@ class QuotaFloat(QtWidgets.QWidget):
 
 
 def main():
+    ensure_output_streams()
+    arguments = sys.argv[1:]
+    if arguments[:1] in (["--launch"], ["--install-shortcut"]):
+        from windows_shortcut import main as shortcut_main
+        return shortcut_main(arguments if arguments[0] == "--launch" else arguments[1:])
     parser = argparse.ArgumentParser(description="Codex 五小时 / 周额度悬浮球")
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     parser.add_argument("--demo", action="store_true", help="离线示例，不读取真实额度")
@@ -341,7 +392,24 @@ def main():
     parser.add_argument("--check", action="store_true", help="读取一次真实额度后退出，不打开窗口")
     parser.add_argument("--background", action="store_true", help="后台启动，日志写入用户的日志目录")
     parser.add_argument("--status", action="store_true", help="检查悬浮球是否正在运行")
+    parser.add_argument("--output", type=Path, help="将 --status / --check 的结果写入 UTF-8 文件")
+    parser.add_argument("--smoke-test", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.smoke_test:
+        args.demo = True
+    if args.output and not (args.status or args.check):
+        parser.error("--output 需要与 --status 或 --check 一起使用")
+    def report(message, error=False):
+        if args.output:
+            try:
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                args.output.write_text(message + "\n", encoding="utf-8")
+            except OSError:
+                print("无法保存检查结果，请检查输出目录写入权限。", file=sys.stderr)
+                return False
+        else:
+            print(message, file=sys.stderr if error else sys.stdout)
+        return True
     if args.status:
         from PyQt5 import QtNetwork
         status_app = QtCore.QCoreApplication(sys.argv[:1])
@@ -349,19 +417,19 @@ def main():
         probe.connectToServer(instance_name())
         running = probe.waitForConnected(1000)
         probe.disconnectFromServer()
-        print(json.dumps({"running": running}))
-        return
+        return 0 if report(json.dumps({"running": running})) else 1
     if args.check:
         from quota_reader import read_quota
         try:
-            print(json.dumps(read_quota(), ensure_ascii=False))
+            if not report(json.dumps(read_quota(), ensure_ascii=False)):
+                return 1
         except RuntimeError as exc:
-            print(str(exc), file=sys.stderr)
+            report(str(exc), error=True)
             return 1
         return
     if args.background:
         try:
-            pid = start_background(demo=args.demo)
+            pid = start_background(demo=args.demo, smoke_test=args.smoke_test)
         except OSError:
             print("后台启动失败，请检查 Python 环境和日志目录写入权限。", file=sys.stderr)
             return 1
@@ -437,7 +505,17 @@ def main():
     signal_timer.timeout.connect(lambda: None)
     signal_timer.start(250)
     window.show()
-    return app.exec_()
+    if args.smoke_test:
+        QtCore.QTimer.singleShot(1500, window.close)
+    result = app.exec_()
+    if args.smoke_test:
+        args.smoke_test.parent.mkdir(parents=True, exist_ok=True)
+        marker = args.smoke_test.with_suffix(args.smoke_test.suffix + ".tmp")
+        marker.write_text(json.dumps({"version": VERSION, "frozen": bool(getattr(sys, "frozen", False)),
+                                      "demo": window.demo, "closed": window.closing,
+                                      "pid": os.getpid(), "parent_pid": os.getppid()}), encoding="utf-8")
+        marker.replace(args.smoke_test)
+    return result
 
 
 if __name__ == "__main__":

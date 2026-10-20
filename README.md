@@ -2,7 +2,7 @@
 
 一个轻量的桌面悬浮窗，让 Codex 的五小时和每周剩余额度像电池电量一样直接可见。
 
-当前发布版本：**v1.1.0**。Windows 和 Linux 的程序分别放在 `windows/`、`linux/`，安装说明、依赖清单和许可证在仓库根目录共用。
+当前发布版本：**v1.1.1**。Windows 提供下载后双击运行的 EXE，Linux 继续使用原版源码。两个系统的源码分别放在 `windows/`、`linux/`，说明和许可证在仓库根目录共用。
 
 <img src="linux/preview-widget.png" width="128" alt="悬浮窗示例：距重置 3:27，五小时剩余 68%，每周重置日期及剩余 80%">
 
@@ -22,7 +22,7 @@
 ```text
 codex-quota-float/
 ├── linux/               Linux 原版程序、启动脚本、图标和测试
-├── windows/             Windows 适配程序、启动脚本、图标和测试
+├── windows/             Windows 适配程序、EXE 构建工具、图标和测试
 ├── requirements.txt     共用依赖清单
 ├── README.md            共用安装与使用说明
 ├── LICENSE              共用许可证
@@ -30,21 +30,62 @@ codex-quota-float/
 └── release_source.py    双系统源码发布打包与校验工具
 ```
 
-`linux/` 保留原 Linux 提交 `f8548e6` 的 11 个程序、测试及资源文件，文件内容不变，仅调整所在目录。其内部版本号保留原值 `0.2.0`；**v1.1.0 是本次双系统源码包的发布版本**，Windows 程序内部版本为 `1.1.0`。更新内容见 [CHANGELOG.md](CHANGELOG.md)。
+`linux/` 保留原 Linux 提交 `f8548e6` 的 11 个程序、测试及资源文件，文件内容不变，仅调整所在目录。其内部版本号保留原值 `0.2.0`；整体发布版本为 **v1.1.1**，Windows 程序内部版本为 `1.1.1`。更新内容见 [CHANGELOG.md](CHANGELOG.md)。
 
-- **Windows 10 / 11**，或 **Linux X11 桌面**。Windows 原生运行，无需 WSL。Wayland 的窗口定位和置顶支持取决于桌面环境；macOS 尚未适配。
-- Python **3.10+** 和 PyQt5，依赖由根目录 `requirements.txt` 声明。
+- **Windows 10 / 11，64 位 x64**：EXE 内含 Python 和界面依赖，无需安装 Python、运行命令或使用 WSL。
+- **Linux X11 桌面**：需要 Python **3.10+** 和 PyQt5。Wayland 的窗口定位和置顶支持取决于桌面环境；macOS 尚未适配。
 - 已安装、并通过 **ChatGPT 账号**登录的 Codex，所用版本需要支持 `codex app-server`。
 
 本程序读取 Codex app-server 的 [`account/rateLimits/read`](https://learn.chatgpt.com/docs/app-server) 接口，选择 `codex` 额度桶中时长为 300 / 10080 分钟的窗口。其他时长、缺失窗口或其他额度桶不会被误显示成满额。
 
 ## 安装与启动
 
-从 [Releases](https://github.com/ShuyuYan/codex-quota-float/releases) 下载并解压 `codex-quota-float-1.1.0.zip`，或克隆本仓库。以下步骤从包含本 README 的根目录开始。
+### Windows：下载后双击
 
-这是**源码发布**，不包含 Python、PyQt5 或 Codex，也不是独立的 Windows `.exe`。请先安装 Python **3.10+**；两个系统的虚拟环境需分别创建，不能互相复制或共用。
+1. 先安装 Codex，并用自己的 ChatGPT 账号登录。
+2. 打开 [Releases](https://github.com/ShuyuYan/codex-quota-float/releases)，在 Assets 中下载 **`CodexQuotaFloat-1.1.1-windows-x64.exe`**。
+3. 将 EXE 放到准备长期保存的位置，**双击启动**。首次启动需稍等片刻，桌面会出现额度悬浮窗。
 
-### Windows
+也可下载 `CodexQuotaFloat-1.1.1-windows-x64.zip`，解压后双击其中的 EXE；该包同时附带许可证和第三方说明。普通使用无需下载 GitHub 的 `Source code`，无需安装 Python。
+
+拖动悬浮窗即可移动，右键可以刷新、切换外观、创建桌面快捷方式或退出。再次双击 EXE 不会重复打开悬浮窗。EXE 是免安装程序，不会自动设置开机启动；建议先把它放到固定文件夹，再右键悬浮窗选择“创建桌面快捷方式”。
+
+程序会自动查找已安装的 Codex CLI 或 Codex 桌面应用。若悬浮窗显示 `—`，将鼠标停留在窗口上查看错误提示，并确认 Codex 已登录；网络或账户读取失败后，可右键立即刷新。程序不附带 Codex，不会替你安装或登录账号。
+
+### Linux：原版源码运行
+
+从 [Releases](https://github.com/ShuyuYan/codex-quota-float/releases) 下载并解压 **`codex-quota-float-1.1.1.zip`**，或克隆本仓库。在包含本 README 的根目录运行：
+
+```bash
+cd linux
+python3 -m venv .venv
+.venv/bin/python -m pip install -r ../requirements.txt
+bash run.sh --background
+```
+
+若 `venv` 模块不可用，先通过发行版包管理器安装 Python 的 venv 支持。使用 Codex CLI 的用户可先通过 `codex login` 登录；程序也会检查常见的 Linux 桌面应用安装位置。
+
+在 `linux/` 目录可使用：
+
+```bash
+# 前台运行，查看启动错误
+bash run.sh
+
+# 状态、一次查询、离线预览
+bash run.sh --status
+bash run.sh --check
+bash run.sh --demo
+
+# 手动指定 Python 或 Codex
+PYTHON=/path/to/python3 bash run.sh --background
+CODEX_BIN=/path/to/codex bash run.sh --background
+```
+
+`/path/to/...` 是需要替换的示例。Codex 查找顺序为 `CODEX_BIN`、兼容变量 `CODEX_CLI_PATH`、`PATH`，以及常见系统安装位置；显式配置无效时会报错。Linux 启动脚本优先使用 `PYTHON`，然后是 `linux/.venv/bin/python` 和 `python3`。
+
+### Windows：从源码运行（开发者）
+
+源码包为 `codex-quota-float-1.1.1.zip`，不包含 Python、PyQt5 或 Codex。需要 Python **3.10+**；两个系统的虚拟环境需分别创建，不能互相复制或共用。
 
 在仓库根目录打开 PowerShell，运行：
 
@@ -79,40 +120,9 @@ $env:PYTHON = 'C:\Tools\Python312\python.exe'
 
 `run.cmd` 调用同目录的 `run.ps1`，仅对当前进程使用执行策略参数。也可直接运行 `.\.venv\Scripts\python.exe app.py --background`。后台悬浮窗及定时查询子进程不会弹出控制台窗口。
 
-### Linux
-
-在仓库根目录运行：
-
-```bash
-cd linux
-python3 -m venv .venv
-.venv/bin/python -m pip install -r ../requirements.txt
-bash run.sh --background
-```
-
-若 `venv` 模块不可用，先通过发行版包管理器安装 Python 的 venv 支持。使用 Codex CLI 的用户可先通过 `codex login` 登录；程序也会检查常见的 Linux 桌面应用安装位置。
-
-在 `linux/` 目录可使用：
-
-```bash
-# 前台运行，查看启动错误
-bash run.sh
-
-# 状态、一次查询、离线预览
-bash run.sh --status
-bash run.sh --check
-bash run.sh --demo
-
-# 手动指定 Python 或 Codex
-PYTHON=/path/to/python3 bash run.sh --background
-CODEX_BIN=/path/to/codex bash run.sh --background
-```
-
-`/path/to/...` 是需要替换的示例。Codex 查找顺序为 `CODEX_BIN`、兼容变量 `CODEX_CLI_PATH`、`PATH`，以及常见系统安装位置；显式配置无效时会报错。Linux 启动脚本优先使用 `PYTHON`，然后是 `linux/.venv/bin/python` 和 `python3`；Windows 优先使用 `PYTHON`，然后是 `windows/.venv/Scripts/python.exe`、`py -3` 和 `python`。
-
 ## 桌面快捷方式
 
-进入对应系统的程序目录，使用运行程序的同一个 Python 环境安装。
+Windows EXE 用户右键悬浮窗选择“创建桌面快捷方式”即可；移动 EXE 后重新创建。以下脚本用于源码运行，进入对应系统的程序目录，使用运行程序的同一个 Python 环境安装。
 
 Windows，在 `windows/` 中运行：
 
@@ -151,6 +161,10 @@ Linux，在 `linux/` 中运行：
 
 ## 从旧版升级
 
+**Windows EXE 用户**：右键退出旧版，下载新版 EXE 并替换原文件，再双击。原有窗口位置、外观设置会继续读取。若由源码版改用 EXE，请把原先指向 `run.cmd` 或 Python 的快捷方式改为指向新版 EXE。
+
+**Linux 与 Windows 源码用户**：
+
 1. 右键退出旧版悬浮窗。
 2. 解压新版，进入对应的 `windows/` 或 `linux/`，按上面步骤创建虚拟环境、安装根目录的依赖。
 3. 在该系统目录中使用同一 Python 运行 `install_shortcut.py --force`，把已有快捷方式更新到新位置。自定义了 Codex 位置时，先设置 `CODEX_BIN`。
@@ -159,13 +173,13 @@ Linux，在 `linux/` 中运行：
 
 ## 校验下载包
 
-将 Release 中的 `codex-quota-float-1.1.0.zip.sha256` 与 ZIP 下载到同一目录，解压前校验。
+EXE 和 ZIP 都提供同名 `.sha256` 校验文件，可按需下载核对。
 
 Windows PowerShell：
 
 ```powershell
-Get-FileHash .\codex-quota-float-1.1.0.zip -Algorithm SHA256
-Get-Content .\codex-quota-float-1.1.0.zip.sha256
+Get-FileHash .\CodexQuotaFloat-1.1.1-windows-x64.exe -Algorithm SHA256
+Get-Content .\CodexQuotaFloat-1.1.1-windows-x64.exe.sha256
 ```
 
 确认两处 SHA-256 相同，字母大小写不影响比较。
@@ -173,11 +187,11 @@ Get-Content .\codex-quota-float-1.1.0.zip.sha256
 Linux：
 
 ```bash
-sha256sum -c codex-quota-float-1.1.0.zip.sha256
+sha256sum -c codex-quota-float-1.1.1.zip.sha256
 ```
 
 解压后的根目录 `SHA256SUMS` 记录包内公开文件的校验值；`LINUX_BASELINE.json` 记录原 Linux 程序文件及其来源提交。贡献与验证见 [CONTRIBUTING.md](CONTRIBUTING.md)，发布与 Git 命令见 [RELEASE.md](RELEASE.md)。
 
 ## 许可证
 
-本项目采用 **GNU GPL v3（GPL-3.0-only）**，完整文本见根目录 [LICENSE](LICENSE)。PyQt5 等依赖的说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+本项目采用 **GNU GPL v3（GPL-3.0-only）**，完整文本见根目录 [LICENSE](LICENSE)。Windows 发布包附带所含 Python、Qt、PyQt5 等依赖的许可证与说明；对应项目源码与依赖源码下载指引随同一 Release 提供，见 [DEPENDENCY_SOURCES.md](windows/DEPENDENCY_SOURCES.md)。详情见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

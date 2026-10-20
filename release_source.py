@@ -10,7 +10,7 @@ import sys
 import zipfile
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 LINUX_SOURCE_COMMIT = "f8548e61435ad884d88f672a7999caacb06b21bb"
 LINUX_FILES = (
     "app.py", "runtime.py", "quota_reader.py", "run.sh", "install_shortcut.py",
@@ -21,12 +21,13 @@ WINDOWS_FILES = (
     "app.py", "runtime.py", "quota_reader.py", "run.cmd", "run.ps1",
     "install_shortcut.py", "windows_shortcut.py", "quota-icon.svg", "quota-icon.ico", "preview-widget.png",
     "test_app.py", "test_runtime.py", "test_quota_reader.py", "test_windows_shortcut.py",
+    "build_exe.py", "requirements-build.txt", "DEPENDENCY_SOURCES.md",
 )
 PUBLIC_FILES = (
     ".gitattributes", ".gitignore", ".github/workflows/tests.yml",
     "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "CONTRIBUTING.md",
     "CHANGELOG.md", "RELEASE.md", "RELEASE_NOTES.md",
-    "requirements.txt", "release_source.py", "test_release_source.py", "LINUX_BASELINE.json",
+    "requirements.txt", "release_source.py", "test_release_source.py", "test_build_exe.py", "LINUX_BASELINE.json",
     *("linux/" + name for name in LINUX_FILES),
     *("windows/" + name for name in WINDOWS_FILES),
 )

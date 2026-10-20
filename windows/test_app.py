@@ -89,8 +89,32 @@ class DisplayTests(unittest.TestCase):
                 window = app.QuotaFloat(demo=True)
                 window.close()
 
+    def test_shortcut_menu_reports_installer_result_without_network(self):
+        import windows_shortcut
+        window = app.QuotaFloat(demo=True)
+        try:
+            for code, dialog in ((0, "information"), (1, "warning")):
+                with self.subTest(code=code), mock.patch.object(windows_shortcut, "main", return_value=code) as installer, \
+                        mock.patch.object(QtWidgets.QMessageBox, dialog) as message:
+                    window.install_shortcuts()
+                    installer.assert_called_once_with(["--force"])
+                    message.assert_called_once()
+        finally:
+            window.close()
+
 
 class ProcessTests(unittest.TestCase):
+    def test_shortcut_arguments_dispatch_before_gui_startup(self):
+        import windows_shortcut
+        for command, forwarded in ((["--launch", "launcher.json"], ["--launch", "launcher.json"]),
+                                   (["--install-shortcut", "--dry-run"], ["--dry-run"])):
+            with self.subTest(command=command), mock.patch.object(app.sys, "argv", ["app.exe"] + command), \
+                    mock.patch.object(windows_shortcut, "main", return_value=0) as shortcut_main, \
+                    mock.patch.object(QtWidgets, "QApplication") as application:
+                self.assertEqual(app.main(), 0)
+                shortcut_main.assert_called_once_with(forwarded)
+                application.assert_not_called()
+
     def test_simultaneous_starts_leave_one_instance_and_status_can_connect(self):
         with tempfile.TemporaryDirectory() as temporary:
             name = "quota-test-" + uuid.uuid4().hex
@@ -176,6 +200,32 @@ sys.exit(app.main() or 0)
             self.assertEqual(options["stdin"], subprocess.DEVNULL)
             self.assertIs(options["stdout"], options["stderr"])
             self.assertTrue((root / "state/app.log").is_file())
+
+    def test_frozen_background_relaunches_exe_with_independent_bundle(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "download" / "CodexQuotaFloat.exe"
+            with mock.patch.object(app.sys, "platform", "win32"), \
+                    mock.patch.object(app.sys, "frozen", True, create=True), \
+                    mock.patch.object(app.sys, "executable", str(executable)), \
+                    mock.patch.object(app, "log_path", return_value=root / "state/app.log"), \
+                    mock.patch.object(subprocess, "CREATE_NO_WINDOW", 0x08000000, create=True), \
+                    mock.patch.object(subprocess, "Popen") as spawn:
+                app.start_background(demo=True)
+            arguments, options = spawn.call_args
+            self.assertEqual(arguments[0], [str(executable), "--demo"])
+            self.assertEqual(options["cwd"], executable.parent)
+            self.assertEqual(options["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+
+    def test_status_can_write_result_for_windowed_executable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "output" / "status.json"
+            command = [sys.executable, str(app.ROOT / "app.py"), "--status", "--output", str(destination)]
+            options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+            completed = subprocess.run(command, cwd=app.ROOT, capture_output=True, timeout=5, **options)
+            self.assertEqual(completed.returncode, 0, completed.stderr.decode(errors="replace"))
+            self.assertIsInstance(json.loads(destination.read_text(encoding="utf-8"))["running"], bool)
+            self.assertEqual(completed.stdout, b"")
 
 
 if __name__ == "__main__":

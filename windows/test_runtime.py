@@ -11,6 +11,67 @@ from unittest import mock
 import runtime
 
 
+class FrozenRuntimeTests(unittest.TestCase):
+    def test_frozen_launch_uses_real_executable_not_temporary_resources(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            executable = Path(temporary) / "Downloaded App" / "CodexQuotaFloat.exe"
+            with mock.patch.object(runtime.sys, "frozen", True, create=True), \
+                    mock.patch.object(runtime.sys, "executable", str(executable)), \
+                    mock.patch.object(runtime.sys, "platform", "win32"):
+                self.assertEqual(runtime.launch_command(), [str(executable)])
+                self.assertEqual(runtime.launch_directory(), executable.parent)
+
+    def test_source_launch_uses_pythonw_and_script(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            executable = Path(temporary) / "python.exe"
+            windowless = executable.with_name("pythonw.exe")
+            windowless.touch()
+            with mock.patch.object(runtime.sys, "frozen", False, create=True), \
+                    mock.patch.object(runtime.sys, "executable", str(executable)), \
+                    mock.patch.object(runtime.sys, "platform", "win32"):
+                self.assertEqual(runtime.launch_command(), [str(windowless), str(runtime.PROJECT_ROOT / "app.py")])
+                self.assertEqual(runtime.launch_directory(), runtime.PROJECT_ROOT)
+
+    def test_windowed_output_is_utf8_log_and_existing_stream_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "state" / "app.log"
+            existing_stdout = runtime.sys.stdout
+            with mock.patch.object(runtime, "log_path", return_value=destination), \
+                    mock.patch.object(runtime.sys, "stderr", None):
+                runtime.ensure_output_streams()
+                log = runtime.sys.stderr
+                try:
+                    self.assertIs(runtime.sys.stdout, existing_stdout)
+                    print("启动成功", file=log, flush=True)
+                finally:
+                    log.close()
+            self.assertEqual(destination.read_text(encoding="utf-8"), "启动成功\n")
+
+    def test_both_missing_streams_share_log_without_double_open(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "app.log"
+            with mock.patch.object(runtime, "log_path", return_value=destination), \
+                    mock.patch.object(runtime.sys, "stdout", None), \
+                    mock.patch.object(runtime.sys, "stderr", None):
+                runtime.ensure_output_streams()
+                log = runtime.sys.stdout
+                try:
+                    self.assertIs(log, runtime.sys.stderr)
+                finally:
+                    log.close()
+
+    def test_output_falls_back_when_log_directory_is_unwritable(self):
+        with mock.patch.object(runtime, "log_path", side_effect=PermissionError), \
+                mock.patch.object(runtime.sys, "stdout", None):
+            runtime.ensure_output_streams()
+            stream = runtime.sys.stdout
+            try:
+                self.assertEqual(stream.name, os.devnull)
+                print("unwritable log does not prevent startup", file=stream)
+            finally:
+                stream.close()
+
+
 class RuntimePathTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="quota-path-test-")
