@@ -54,6 +54,18 @@ def reset_countdown(resets_at, now=None):
     return f"{hours}:{minutes:02d}"
 
 
+def reset_date(resets_at):
+    if isinstance(resets_at, bool) or not isinstance(resets_at, (int, float)):
+        return "--.--"
+    if not math.isfinite(resets_at) or resets_at <= 0:
+        return "--.--"
+    try:
+        reset = QtCore.QDateTime.fromSecsSinceEpoch(int(resets_at))
+    except (OverflowError, ValueError):
+        return "--.--"
+    return reset.toString("MM.dd") if reset.isValid() else "--.--"
+
+
 class QuotaFloat(QtWidgets.QWidget):
     def __init__(self, demo=False):
         super().__init__()
@@ -81,7 +93,7 @@ class QuotaFloat(QtWidgets.QWidget):
         self.load_position()
         if demo:
             self.snapshot = {"fetched_at": time.time(), "five_hour": {"remaining": 68, "resets_at": time.time() + 3 * 3600 + 27 * 60},
-                             "weekly": {"remaining": 80, "resets_at": None}}
+                             "weekly": {"remaining": 80, "resets_at": time.time() + 5 * 24 * 3600}}
             self.update_tooltip()
         else:
             self.timer.start(REFRESH_MS)
@@ -199,8 +211,9 @@ class QuotaFloat(QtWidgets.QWidget):
         painter.setPen(QtGui.QPen(QtGui.QColor("#44494c" if self.dark else "#e9edea"), 1))
         painter.drawLine(QtCore.QPointF(20, 63), QtCore.QPointF(44, 63))
         first = (self.snapshot or {}).get("five_hour") or {}
+        weekly = (self.snapshot or {}).get("weekly") or {}
         self.paint_quota(painter, "five_hour", reset_countdown(first.get("resets_at")), 13)
-        self.paint_quota(painter, "weekly", "Week", 68)
+        self.paint_quota(painter, "weekly", reset_date(weekly.get("resets_at")), 68)
         painter.end()
 
     def paint_quota(self, painter, key, label, top):
